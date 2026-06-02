@@ -1,6 +1,7 @@
-export function generatePolling({ token, messages, transitions, initialNext }) {
+export function generatePolling({ token, messages, authPrompts = {}, transitions, initialNext }) {
   const tables = `
 const MESSAGES = ${JSON.stringify(messages, null, 2)};
+const AUTH_PROMPTS = ${JSON.stringify(authPrompts, null, 2)};
 const TRANSITIONS = ${JSON.stringify(transitions, null, 2)};
 const INITIAL_NEXT = ${JSON.stringify(initialNext)};
 `.trim();
@@ -9,49 +10,131 @@ const INITIAL_NEXT = ${JSON.stringify(initialNext)};
 const TOKEN = ${JSON.stringify(token)};
 const API = 'https://platform-api.max.ru';
 const userState = new Map();
+const userVars = new Map();
 
 ${tables}
+
+function render(text, chatId) {
+  const vars = userVars.get(chatId) ?? {};
+  return String(text).replace(/\\{\\{(\\w+)\\}\\}/g, (_, name) => vars[name] ?? '');
+}
+
+function parseVcf(vcf) {
+  const out = { fn: '', last: '', first: '', tel: '' };
+  for (const raw of String(vcf).split(/\\r?\\n/)) {
+    const idx = raw.indexOf(':');
+    if (idx < 0) continue;
+    const left = raw.slice(0, idx);
+    const value = raw.slice(idx + 1);
+    const key = left.split(';')[0].toUpperCase();
+    if (key === 'FN') out.fn = value.trim();
+    else if (key === 'N') {
+      const parts = value.split(';');
+      out.last = (parts[0] ?? '').trim();
+      out.first = (parts[1] ?? '').trim();
+    } else if (key === 'TEL') {
+      if (!out.tel) out.tel = value.trim();
+    }
+  }
+  return out;
+}
+
+function extractContact(att) {
+  const m = att?.max_info ?? {};
+  const vcf = parseVcf(att?.vcf_info ?? '');
+  return {
+    first_name: m.first_name ?? vcf.first ?? vcf.fn ?? '',
+    last_name:  m.last_name  ?? vcf.last  ?? '',
+    phone:      String(m.phone ?? vcf.tel ?? ''),
+  };
+}
+
+function findContact(update) {
+  const lists = [
+    update?.message?.body?.attachments,
+    update?.message?.attachments,
+  ];
+  for (const list of lists) {
+    if (Array.isArray(list)) {
+      const c = list.find((a) => a && a.type === 'contact');
+      if (c) return c;
+    }
+  }
+  return null;
+}
 
 async function send(chatId, text, buttons) {
   const body = { text };
   if (buttons && buttons.length > 0) {
     body.attachments = [{
       type: 'inline_keyboard',
-      payload: {
-        buttons: [buttons.map(b => ({ text: b.text, payload: b.payload, type: 'callback' }))],
-      },
+      payload: { buttons: [buttons] },
     }];
   }
   const r = await fetch(\`\${API}/messages?chat_id=\${chatId}\`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': TOKEN,
-    },
+    headers: { 'Content-Type': 'application/json', 'Authorization': TOKEN },
     body: JSON.stringify(body),
   });
   if (!r.ok) console.error('send failed:', r.status, await r.text());
 }
 
-async function handle(chatId, payload) {
+function authButtons(prompt) {
+  const arr = [{ type: 'request_contact', text: prompt.contactButton.text }];
+  if (prompt.refusalButton) {
+    arr.push({ type: 'callback', text: prompt.refusalButton.text, payload: prompt.refusalButton.payload });
+  }
+  return arr;
+}
+
+function messageButtons(msg) {
+  if (!msg.buttons) return null;
+  return msg.buttons.map((b) => ({ type: 'callback', text: b.text, payload: b.payload }));
+}
+
+async function handle(chatId, update) {
   const state = userState.get(chatId) ?? 'start';
-  let next;
+  let next = null;
+
   if (state === 'start') {
     next = INITIAL_NEXT;
-  } else {
+  } else if (state in AUTH_PROMPTS) {
+    const contact = findContact(update);
+    const callbackPayload = update?.callback?.payload ?? update?.message_callback?.payload;
+    if (contact) {
+      const fields = extractContact(contact);
+      const prev = userVars.get(chatId) ?? {};
+      userVars.set(chatId, { ...prev, ...fields });
+      next = TRANSITIONS[state]?.contact ?? null;
+    } else if (callbackPayload === \`auth_refuse_\${state}\`) {
+      next = TRANSITIONS[state]?.refused ?? null;
+    } else {
+      return;
+    }
+  } else if (state in MESSAGES) {
+    const payload = update?.callback?.payload ?? update?.message_callback?.payload;
     const trans = TRANSITIONS[state];
     if (!trans) return;
     next = trans[payload] ?? trans.default ?? null;
+  } else {
+    return;
   }
-  if (!next) {
+
+  if (!next) { userState.set(chatId, 'start'); return; }
+
+  if (next in AUTH_PROMPTS) {
+    const prompt = AUTH_PROMPTS[next];
+    await send(chatId, render(prompt.promptText, chatId), authButtons(prompt));
+  } else if (next in MESSAGES) {
+    const m = MESSAGES[next];
+    await send(chatId, render(m.text, chatId), messageButtons(m));
+  } else {
     userState.set(chatId, 'start');
     return;
   }
-  const m = MESSAGES[next];
-  if (!m) return;
-  await send(chatId, m.text, m.buttons);
+
   const nextTrans = TRANSITIONS[next];
-  const hasAnyTarget = nextTrans && Object.values(nextTrans).some(v => v);
+  const hasAnyTarget = nextTrans && Object.values(nextTrans).some((v) => v);
   userState.set(chatId, hasAnyTarget ? next : 'start');
 }
 
@@ -76,12 +159,11 @@ if (!globalThis.__SKIP_POLL__) {
           const chatId = u.chat_id
             ?? u.message?.recipient?.chat_id
             ?? u.message?.recipient?.chatId;
-          const payload = u.callback?.payload ?? u.message_callback?.payload;
           if (!chatId) {
             console.error('no chat_id in update:', JSON.stringify(u));
             continue;
           }
-          await handle(chatId, payload);
+          await handle(chatId, u);
         }
       } catch (e) {
         console.error('polling error:', e);
