@@ -10,7 +10,7 @@ describe('generatePolling', () => {
       initialNext: 'm1',
     });
     expect(() => new Function(code)).not.toThrow();
-    expect(code).toContain("const TOKEN = 'tok123'");
+    expect(code).toContain('const TOKEN = "tok123"');
     expect(code).toContain('"m1"');
   });
 
