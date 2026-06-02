@@ -3,10 +3,11 @@ import { generatePolling } from './polling.js';
 import { generateWebhook } from './webhook.js';
 
 export function generate(project) {
-  const { messages, transitions, initialNext } = traverse(project);
+  const { messages, authPrompts, transitions, initialNext } = traverse(project);
   const args = {
     token: project.token ?? '',
     messages,
+    authPrompts,
     transitions,
     initialNext,
   };
