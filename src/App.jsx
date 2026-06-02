@@ -2,14 +2,15 @@ import { useCallback, useRef } from 'react';
 import ReactFlow, { Background, Controls, MiniMap, useReactFlow, ReactFlowProvider } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { useStore } from './store.js';
-import { makeMessageNode } from './nodeFactory.js';
+import { makeMessageNode, makeAuthNode } from './nodeFactory.js';
 import Toolbar from './components/Toolbar.jsx';
 import BlockPalette from './components/BlockPalette.jsx';
 import PropertiesPanel from './components/PropertiesPanel.jsx';
 import StartNode from './components/StartNode.jsx';
 import MessageNode from './components/MessageNode.jsx';
+import AuthNode from './components/AuthNode.jsx';
 
-const nodeTypes = { start: StartNode, message: MessageNode };
+const nodeTypes = { start: StartNode, message: MessageNode, auth: AuthNode };
 
 function Canvas() {
   const nodes = useStore((s) => s.nodes);
@@ -31,9 +32,9 @@ function Canvas() {
   const onDrop = useCallback((e) => {
     e.preventDefault();
     const kind = e.dataTransfer.getData('application/x-bot-block');
-    if (kind !== 'message') return;
     const position = screenToFlowPosition({ x: e.clientX, y: e.clientY });
-    addNode(makeMessageNode(position));
+    if (kind === 'message') addNode(makeMessageNode(position));
+    else if (kind === 'auth') addNode(makeAuthNode(position));
   }, [addNode, screenToFlowPosition]);
 
   return (
