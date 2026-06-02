@@ -76,4 +76,78 @@ describe('traverse', () => {
     expect(Object.keys(messages).sort()).toEqual(['a', 'b']);
     expect(transitions.b).toEqual({ default: 'a' });
   });
+
+  it('emits authPrompts entry with contact button only when refusal disabled', () => {
+    const project = {
+      nodes: [
+        { id: 'start', type: 'start', data: {} },
+        { id: 'a1', type: 'auth', data: {
+          promptText: 'Авторизуйтесь',
+          contactButtonText: 'Контакт',
+          refusalEnabled: false,
+          refusalButtonText: 'Нет',
+        } },
+        { id: 'm1', type: 'message', data: { text: 'Готово', buttonsEnabled: false } },
+      ],
+      edges: [
+        { id: 'e0', source: 'start', target: 'a1' },
+        { id: 'e1', source: 'a1', sourceHandle: 'contact', target: 'm1' },
+      ],
+    };
+    const { authPrompts, transitions, initialNext, messages } = traverse(project);
+    expect(initialNext).toBe('a1');
+    expect(authPrompts.a1).toEqual({
+      promptText: 'Авторизуйтесь',
+      contactButton: { text: 'Контакт' },
+      refusalButton: null,
+    });
+    expect(transitions.a1).toEqual({ contact: 'm1' });
+    expect(messages.m1).toEqual({ text: 'Готово', buttons: null });
+  });
+
+  it('emits refusal button and refused transition when enabled', () => {
+    const project = {
+      nodes: [
+        { id: 'start', type: 'start', data: {} },
+        { id: 'a1', type: 'auth', data: {
+          promptText: 'P',
+          contactButtonText: 'C',
+          refusalEnabled: true,
+          refusalButtonText: 'R',
+        } },
+        { id: 'm1', type: 'message', data: { text: 'ok', buttonsEnabled: false } },
+        { id: 'm2', type: 'message', data: { text: 'reject', buttonsEnabled: false } },
+      ],
+      edges: [
+        { id: 'e0', source: 'start', target: 'a1' },
+        { id: 'e1', source: 'a1', sourceHandle: 'contact', target: 'm1' },
+        { id: 'e2', source: 'a1', sourceHandle: 'refused', target: 'm2' },
+      ],
+    };
+    const { authPrompts, transitions, messages } = traverse(project);
+    expect(authPrompts.a1).toEqual({
+      promptText: 'P',
+      contactButton: { text: 'C' },
+      refusalButton: { text: 'R', payload: 'auth_refuse_a1' },
+    });
+    expect(transitions.a1).toEqual({ contact: 'm1', refused: 'm2' });
+    expect(messages.m1.text).toBe('ok');
+    expect(messages.m2.text).toBe('reject');
+  });
+
+  it('uses default button text when fields are blank', () => {
+    const project = {
+      nodes: [
+        { id: 'start', type: 'start', data: {} },
+        { id: 'a1', type: 'auth', data: {
+          promptText: '', contactButtonText: '',
+          refusalEnabled: true, refusalButtonText: '',
+        } },
+      ],
+      edges: [{ id: 'e0', source: 'start', target: 'a1' }],
+    };
+    const { authPrompts } = traverse(project);
+    expect(authPrompts.a1.contactButton.text).toBe('Поделиться контактом');
+    expect(authPrompts.a1.refusalButton.text).toBe('Отказаться');
+  });
 });
