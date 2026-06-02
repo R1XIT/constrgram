@@ -1,6 +1,8 @@
-import ReactFlow, { Background, Controls, MiniMap } from 'reactflow';
+import { useCallback, useRef } from 'react';
+import ReactFlow, { Background, Controls, MiniMap, useReactFlow, ReactFlowProvider } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { useStore } from './store.js';
+import { makeMessageNode } from './nodeFactory.js';
 import Toolbar from './components/Toolbar.jsx';
 import BlockPalette from './components/BlockPalette.jsx';
 import PropertiesPanel from './components/PropertiesPanel.jsx';
@@ -9,35 +11,60 @@ import MessageNode from './components/MessageNode.jsx';
 
 const nodeTypes = { start: StartNode, message: MessageNode };
 
-export default function App() {
+function Canvas() {
   const nodes = useStore((s) => s.nodes);
   const edges = useStore((s) => s.edges);
   const onNodesChange = useStore((s) => s.onNodesChange);
   const onEdgesChange = useStore((s) => s.onEdgesChange);
   const onConnect = useStore((s) => s.onConnect);
   const setSelected = useStore((s) => s.setSelected);
+  const addNode = useStore((s) => s.addNode);
 
+  const wrapper = useRef(null);
+  const { screenToFlowPosition } = useReactFlow();
+
+  const onDragOver = useCallback((e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  }, []);
+
+  const onDrop = useCallback((e) => {
+    e.preventDefault();
+    const kind = e.dataTransfer.getData('application/x-bot-block');
+    if (kind !== 'message') return;
+    const position = screenToFlowPosition({ x: e.clientX, y: e.clientY });
+    addNode(makeMessageNode(position));
+  }, [addNode, screenToFlowPosition]);
+
+  return (
+    <div ref={wrapper} className="canvas" onDragOver={onDragOver} onDrop={onDrop}>
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onConnect={onConnect}
+        onNodeClick={(_e, n) => setSelected(n.id)}
+        onPaneClick={() => setSelected(null)}
+        nodeTypes={nodeTypes}
+        fitView
+      >
+        <Background variant="dots" gap={16} size={1} />
+        <Controls />
+        <MiniMap />
+      </ReactFlow>
+    </div>
+  );
+}
+
+export default function App() {
   return (
     <div className="app">
       <div className="toolbar"><Toolbar /></div>
       <div className="palette"><BlockPalette /></div>
-      <div className="canvas">
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          onNodeClick={(_e, n) => setSelected(n.id)}
-          onPaneClick={() => setSelected(null)}
-          nodeTypes={nodeTypes}
-          fitView
-        >
-          <Background variant="dots" gap={16} size={1} />
-          <Controls />
-          <MiniMap />
-        </ReactFlow>
-      </div>
+      <ReactFlowProvider>
+        <Canvas />
+      </ReactFlowProvider>
       <div className="properties"><PropertiesPanel /></div>
     </div>
   );
