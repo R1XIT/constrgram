@@ -33,12 +33,27 @@ export const useStore = create((set, get) => ({
 
   addNode: (node) => set({ nodes: [...get().nodes, node] }),
 
-  updateNodeData: (id, patch) =>
-    set({
-      nodes: get().nodes.map((n) =>
-        n.id === id ? { ...n, data: { ...n.data, ...patch } } : n
-      ),
-    }),
+  updateNodeData: (id, patch) => {
+    const nodes = get().nodes.map((n) =>
+      n.id === id ? { ...n, data: { ...n.data, ...patch } } : n
+    );
+    const node = nodes.find((n) => n.id === id);
+    let edges = get().edges;
+    if (node && node.type === 'message') {
+      const validHandles = new Set();
+      if (node.data.buttonsEnabled) {
+        (node.data.buttons ?? []).forEach((_, i) => validHandles.add(`btn-${i}`));
+      } else {
+        validHandles.add('default');
+        validHandles.add(null);
+        validHandles.add(undefined);
+      }
+      edges = edges.filter((e) =>
+        e.source !== id || validHandles.has(e.sourceHandle)
+      );
+    }
+    set({ nodes, edges });
+  },
 
   loadProject: (project) => {
     resetNodeIdCounter();

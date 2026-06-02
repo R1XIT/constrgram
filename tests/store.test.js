@@ -59,4 +59,26 @@ describe('store', () => {
     expect(s.nodes).toHaveLength(2);
     expect(s.edges).toHaveLength(1);
   });
+
+  it('prunes edges when their sourceHandle no longer exists', () => {
+    useStore.getState().addNode({
+      id: 'msg_1', type: 'message',
+      position: { x: 0, y: 0 },
+      data: { text: '', buttonsEnabled: true, buttons: [{ text: 'A' }, { text: 'B' }] },
+    });
+    useStore.getState().addNode({
+      id: 'msg_2', type: 'message',
+      position: { x: 200, y: 0 },
+      data: { text: '', buttonsEnabled: false, buttons: [] },
+    });
+    useStore.setState({
+      edges: [
+        { id: 'e0', source: 'msg_1', sourceHandle: 'btn-0', target: 'msg_2' },
+        { id: 'e1', source: 'msg_1', sourceHandle: 'btn-1', target: 'msg_2' },
+      ],
+    });
+    useStore.getState().updateNodeData('msg_1', { buttons: [{ text: 'A' }] });
+    const edges = useStore.getState().edges;
+    expect(edges.map((e) => e.sourceHandle)).toEqual(['btn-0']);
+  });
 });
