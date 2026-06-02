@@ -1,0 +1,31 @@
+{
+  "name": "bot-constructor-max",
+  "version": "0.1.0",
+  "private": true,
+  "main": "electron/main.js",
+  "scripts": {
+    "dev:vite": "vite",
+    "dev:electron": "electron .",
+    "dev": "concurrently -k \"npm:dev:vite\" \"wait-on http://localhost:5173 && npm:dev:electron\"",
+    "build:renderer": "vite build",
+    "build:exe": "npm run build:renderer && electron-builder",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "reactflow": "^11.11.4",
+    "zustand": "^4.5.4"
+  },
+  "devDependencies": {
+    "@testing-library/react": "^16.0.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "concurrently": "^8.2.2",
+    "electron": "^31.3.0",
+    "electron-builder": "^24.13.3",
+    "jsdom": "^24.1.1",
+    "vite": "^5.4.0",
+    "vitest": "^1.6.0",
+    "wait-on": "^7.2.0"
+  }
+}
