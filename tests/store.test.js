@@ -81,4 +81,18 @@ describe('store', () => {
     const edges = useStore.getState().edges;
     expect(edges.map((e) => e.sourceHandle)).toEqual(['btn-0']);
   });
+
+  it('makeAuthNode default data has empty prompt, default button texts, refusal off', async () => {
+    const { makeAuthNode } = await import('../src/nodeFactory.js');
+    const n = makeAuthNode({ x: 10, y: 20 });
+    expect(n.type).toBe('auth');
+    expect(n.position).toEqual({ x: 10, y: 20 });
+    expect(n.data).toEqual({
+      promptText: '',
+      contactButtonText: 'Поделиться контактом',
+      refusalEnabled: false,
+      refusalButtonText: 'Отказаться',
+    });
+    expect(n.id).toMatch(/^auth_\d+$/);
+  });
 });

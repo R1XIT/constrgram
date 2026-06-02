@@ -30,3 +30,17 @@ export function makeMessageNode(position) {
     },
   };
 }
+
+export function makeAuthNode(position) {
+  return {
+    id: nextNodeId('auth'),
+    type: 'auth',
+    position,
+    data: {
+      promptText: '',
+      contactButtonText: 'Поделиться контактом',
+      refusalEnabled: false,
+      refusalButtonText: 'Отказаться',
+    },
+  };
+}
