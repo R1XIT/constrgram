@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { generatePolling } from '../../src/generator/polling.js';
+import { generate } from '../../src/generator/index.js';
 
 describe('generatePolling', () => {
   it('produces parseable JS that contains TOKEN and tables', () => {
@@ -45,5 +46,34 @@ describe('generatePolling', () => {
     expect(sent[1].text).toBe('bye');
     expect(userState.get(42)).toBe('start'); // m2 is terminal
     delete globalThis.__SKIP_POLL__;
+  });
+});
+
+describe('generate(project)', () => {
+  it('dispatches to polling template for mode: "polling"', () => {
+    const project = {
+      token: 'T',
+      mode: 'polling',
+      nodes: [
+        { id: 'start', type: 'start', data: {} },
+        { id: 'm1', type: 'message', data: { text: 'hi', buttonsEnabled: false } },
+      ],
+      edges: [{ id: 'e0', source: 'start', target: 'm1' }],
+    };
+    const code = generate(project);
+    expect(code).toContain('fetch(`${API}/updates');
+  });
+
+  it('dispatches to webhook template for mode: "webhook"', () => {
+    const project = {
+      token: 'T', mode: 'webhook',
+      nodes: [
+        { id: 'start', type: 'start', data: {} },
+        { id: 'm1', type: 'message', data: { text: 'hi', buttonsEnabled: false } },
+      ],
+      edges: [{ id: 'e0', source: 'start', target: 'm1' }],
+    };
+    const code = generate(project);
+    expect(code).toContain("require('http')");
   });
 });
