@@ -264,4 +264,33 @@ describe('generatePolling — variables & auth', () => {
     expect(userState.get(42)).toBe('a1');
     delete globalThis.__SKIP_POLL__;
   });
+
+  it('ignores contact attachment when state is a message node (not auth)', async () => {
+    const { handle, userState, sent } = build({
+      token: 'T',
+      messages: {
+        m1: { text: 'first', buttons: null },
+        m2: { text: 'second', buttons: null },
+      },
+      authPrompts: {},
+      transitions: { m1: { default: 'm2' }, m2: { default: null } },
+      initialNext: 'm1',
+    });
+    // Land on m1
+    await handle(42, { update_type: 'message_created', chat_id: 42, message: {} });
+    expect(userState.get(42)).toBe('m1');
+    const beforeLen = sent.length;
+    // Contact arrives in non-auth state — must be ignored
+    await handle(42, {
+      update_type: 'message_created', chat_id: 42,
+      message: { body: { attachments: [{
+        type: 'contact',
+        max_info: { first_name: 'X', last_name: 'Y', phone: '+1' },
+        vcf_info: '',
+      }] } },
+    });
+    expect(sent.length).toBe(beforeLen);
+    expect(userState.get(42)).toBe('m1');
+    delete globalThis.__SKIP_POLL__;
+  });
 });
