@@ -52,6 +52,13 @@ export const useStore = create((set, get) => ({
         e.source !== id || validHandles.has(e.sourceHandle)
       );
     }
+    if (node && node.type === 'auth') {
+      const validHandles = new Set(['contact']);
+      if (node.data.refusalEnabled) validHandles.add('refused');
+      edges = edges.filter((e) =>
+        e.source !== id || validHandles.has(e.sourceHandle)
+      );
+    }
     set({ nodes, edges });
   },
 

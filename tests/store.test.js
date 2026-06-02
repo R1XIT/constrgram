@@ -95,4 +95,44 @@ describe('store', () => {
     });
     expect(n.id).toMatch(/^auth_\d+$/);
   });
+
+  it('prunes refused edge when auth refusalEnabled toggles off', () => {
+    useStore.getState().addNode({
+      id: 'auth_1', type: 'auth', position: { x: 0, y: 0 },
+      data: { promptText: '', contactButtonText: 'C', refusalEnabled: true, refusalButtonText: 'R' },
+    });
+    useStore.getState().addNode({
+      id: 'msg_x', type: 'message', position: { x: 200, y: 0 },
+      data: { text: '', buttonsEnabled: false, buttons: [] },
+    });
+    useStore.setState({
+      edges: [
+        { id: 'e0', source: 'auth_1', sourceHandle: 'contact', target: 'msg_x' },
+        { id: 'e1', source: 'auth_1', sourceHandle: 'refused', target: 'msg_x' },
+      ],
+    });
+    useStore.getState().updateNodeData('auth_1', { refusalEnabled: false });
+    const handles = useStore.getState().edges
+      .filter((e) => e.source === 'auth_1')
+      .map((e) => e.sourceHandle)
+      .sort();
+    expect(handles).toEqual(['contact']);
+  });
+
+  it('keeps refused edge when refusalEnabled remains on', () => {
+    useStore.getState().addNode({
+      id: 'auth_1', type: 'auth', position: { x: 0, y: 0 },
+      data: { promptText: '', contactButtonText: 'C', refusalEnabled: true, refusalButtonText: 'R' },
+    });
+    useStore.setState({
+      edges: [
+        { id: 'e0', source: 'auth_1', sourceHandle: 'contact', target: 'x' },
+        { id: 'e1', source: 'auth_1', sourceHandle: 'refused', target: 'x' },
+      ],
+    });
+    useStore.getState().updateNodeData('auth_1', { promptText: 'hi' });
+    const handles = useStore.getState().edges
+      .map((e) => e.sourceHandle).sort();
+    expect(handles).toEqual(['contact', 'refused']);
+  });
 });
