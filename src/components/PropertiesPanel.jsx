@@ -11,9 +11,14 @@ export default function PropertiesPanel() {
   if (node.type === 'start') {
     return <div><b>Start</b><div style={{ color: '#888', marginTop: 8 }}>Этот блок не редактируется.</div></div>;
   }
+  if (node.type === 'auth') {
+    return <AuthEditor node={node} updateNodeData={updateNodeData} />;
+  }
+  return <MessageEditor node={node} updateNodeData={updateNodeData} />;
+}
 
+function MessageEditor({ node, updateNodeData }) {
   const { text = '', buttonsEnabled = false, buttons = [] } = node.data;
-
   function setText(v) { updateNodeData(node.id, { text: v }); }
   function setButtonsEnabled(v) { updateNodeData(node.id, { buttonsEnabled: v }); }
   function setButtonText(i, v) {
@@ -26,7 +31,6 @@ export default function PropertiesPanel() {
   function removeButton(i) {
     updateNodeData(node.id, { buttons: buttons.filter((_, idx) => idx !== i) });
   }
-
   return (
     <div>
       <div style={{ fontWeight: 600, marginBottom: 8 }}>Сообщение</div>
@@ -65,6 +69,69 @@ export default function PropertiesPanel() {
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+function AuthEditor({ node, updateNodeData }) {
+  const {
+    promptText = '',
+    contactButtonText = '',
+    refusalEnabled = false,
+    refusalButtonText = '',
+  } = node.data;
+  const set = (patch) => updateNodeData(node.id, patch);
+  return (
+    <div>
+      <div style={{ fontWeight: 600, marginBottom: 8 }}>Авторизация</div>
+
+      <label style={{ display: 'block', fontSize: 12, marginBottom: 4 }}>Текст приглашения</label>
+      <textarea
+        value={promptText}
+        onChange={(e) => set({ promptText: e.target.value })}
+        style={{ width: '100%', minHeight: 60, padding: 6, fontFamily: 'inherit' }}
+      />
+
+      <label style={{ display: 'block', fontSize: 12, marginTop: 12, marginBottom: 4 }}>
+        Текст кнопки контакта
+      </label>
+      <input
+        value={contactButtonText}
+        onChange={(e) => set({ contactButtonText: e.target.value })}
+        placeholder="Поделиться контактом"
+        style={{ width: '100%', padding: 6 }}
+      />
+
+      <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 12 }}>
+        <input
+          type="checkbox"
+          checked={refusalEnabled}
+          onChange={(e) => set({ refusalEnabled: e.target.checked })}
+        />
+        Показать кнопку отказа
+      </label>
+
+      {refusalEnabled && (
+        <>
+          <label style={{ display: 'block', fontSize: 12, marginTop: 8, marginBottom: 4 }}>
+            Текст кнопки отказа
+          </label>
+          <input
+            value={refusalButtonText}
+            onChange={(e) => set({ refusalButtonText: e.target.value })}
+            placeholder="Отказаться"
+            style={{ width: '100%', padding: 6 }}
+          />
+        </>
+      )}
+
+      <div style={{
+        marginTop: 16, padding: 8, fontSize: 12, lineHeight: 1.5,
+        background: '#f4ecf7', borderLeft: '3px solid #8e44ad', color: '#4a235a',
+      }}>
+        Этот блок задаёт переменные: <code>{'{{first_name}}'}</code>, <code>{'{{last_name}}'}</code>, <code>{'{{phone}}'}</code>.
+        Используйте их в тексте сообщений.
+      </div>
     </div>
   );
 }
