@@ -33,17 +33,20 @@ describe('generatePolling', () => {
     const factory = new Function('fetch', `${code}\nreturn { handle, userState };`);
     const fakeFetch = async (url, opts) => {
       if (opts?.method === 'POST') {
-        sent.push(JSON.parse(opts.body));
-        return { json: async () => ({}) };
+        sent.push({ url, body: JSON.parse(opts.body), headers: opts.headers });
+        return { ok: true, status: 200, json: async () => ({}), text: async () => '' };
       }
-      return { json: async () => ({ updates: [] }) };
+      return { ok: true, status: 200, json: async () => ({ updates: [] }), text: async () => '' };
     };
     const { handle, userState } = factory(fakeFetch);
     await handle(42, undefined);
-    expect(sent[0].text).toBe('hi');
+    expect(sent[0].body.text).toBe('hi');
+    expect(sent[0].url).toContain('/messages?chat_id=42');
+    expect(sent[0].headers.Authorization).toBe('T');
+    expect(sent[0].body.recipient).toBeUndefined(); // chat_id in URL, not body
     expect(userState.get(42)).toBe('m1');
     await handle(42, 'btn_0');
-    expect(sent[1].text).toBe('bye');
+    expect(sent[1].body.text).toBe('bye');
     expect(userState.get(42)).toBe('start'); // m2 is terminal
     delete globalThis.__SKIP_POLL__;
   });
