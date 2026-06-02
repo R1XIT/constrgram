@@ -72,7 +72,7 @@ if (!globalThis.__SKIP_POLL__) {
         await new Promise(res => setTimeout(res, 2000));
       }
     }
-  })();
+  })().catch((e) => { console.error('fatal:', e); process.exit(1); });
 }
 `;
 }
