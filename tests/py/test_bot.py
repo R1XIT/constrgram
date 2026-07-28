@@ -67,11 +67,13 @@ def test_callback_advances_and_removes_keyboard(make_bot):
     bot = make_bot(linear_buttons_project())
     ctx = make_context()
     run(bot.handle(make_update(42, text="/start"), ctx))
-    run(bot.handle(make_update(42, callback_data="btn_0"), ctx))
+    upd = make_update(42, callback_data="btn_0")
+    run(bot.handle(upd, ctx))
     calls = sent(ctx)
     assert calls[1]["text"] == "bye"
     assert isinstance(calls[1]["reply_markup"], ReplyKeyboardRemove)
     assert bot.user_state[42] == "start"  # m2 терминальна
+    assert upd.callback_query.answer.await_count == 1
 
 
 def test_start_command_resets_mid_flow(make_bot):
