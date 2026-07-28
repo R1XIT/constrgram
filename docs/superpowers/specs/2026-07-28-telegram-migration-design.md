@@ -1,4 +1,4 @@
-# Bot Constructor → Telegram — Design Spec
+# Bot Constructor → Telegram (Python) — Design Spec
 
 **Дата:** 2026-07-28
 **Статус:** Approved
@@ -7,9 +7,9 @@
 
 ## Обзор
 
-Перевод визуального конструктора ботов с мессенджера **Max** на **Telegram**. Приложение (десктопный конструктор на граф-холсте) остаётся тем же; меняется только целевой мессенджер генерируемого бота. Поддержка Max убирается полностью — это не двойной таргет, а замена.
+Перевод визуального конструктора ботов с мессенджера **Max** на **Telegram**, при этом генерируемый бот компилируется в **Python** на базе библиотеки **python-telegram-bot (PTB)** (а не в Node.js). Приложение-конструктор (граф-холст) остаётся тем же; меняется только целевой мессенджер и язык выходного скрипта.
 
-Граф-модель и алгоритм обхода сохраняются. Переписывается генератор кода: он выпускает Node.js-скрипт под **Telegram Bot API** вместо Max API.
+Граф-модель и алгоритм обхода сохраняются. Переписывается генератор кода: он выпускает Python-скрипт `bot.py` под Telegram Bot API через PTB.
 
 ---
 
@@ -17,7 +17,7 @@
 
 ### Остаётся без изменений
 
-Модель сценария не зависит от мессенджера:
+Модель сценария не зависит ни от мессенджера, ни от целевого языка:
 
 - `src/store.js` — состояние графа (zustand), блоки и рёбра
 - `src/nodeFactory.js` — фабрики блоков Start / Message / Auth
@@ -26,170 +26,179 @@
 
 ### Переписывается
 
-- `src/generator/polling.js` — генерирует Telegram long-polling бот
-- `src/generator/webhook.js` — генерирует Telegram webhook бот
-- `src/generator/traverse.js` — **одна правка**: для auth-блока refusal определяется по тексту кнопки, а не по callback-payload (см. ниже)
-- `tests/generator/polling.test.js`, `tests/generator/webhook.test.js` — полностью под Telegram
-- `tests/generator/traverse.test.js` — правки только в части auth-refusal
-- Строки бренда «for Max» → «for Telegram», URL API
-- Метаданные: `package.json` `name` → `bot-constructor-telegram`; строки в `CLAUDE.md`
+- `src/generator/runtime.js` (**новый**) — строит общий Python-пролог (таблицы, `render`, `handle`, разметка клавиатур)
+- `src/generator/polling.js` — добавляет запуск PTB `run_polling`
+- `src/generator/webhook.js` — добавляет запуск PTB `run_webhook`
+- `src/generator/traverse.js` — **одна правка**: refusal-кнопка отдаётся как `{ text }` без `payload` (в Telegram reply-кнопка шлёт текст, не callback)
+- Строки бренда, метаданные (`package.json`, `CLAUDE.md`)
+
+### Добавляется
+
+- `scripts/generate.mjs` — CLI-обёртка над `generate()` для pytest (project JSON → Python в stdout)
+- `tests/py/conftest.py` + `tests/py/test_bot.py` — поведенческие pytest-тесты сгенерированного бота
+- Структурные проверки генератора остаются на vitest (`tests/generator/*`)
 
 ---
 
-## Маппинг Max → Telegram
+## Целевая среда генерируемого бота
 
-| Аспект | Max (было) | Telegram (стало) |
-|--------|-----------|------------------|
-| API base | `https://platform-api.max.ru`, токен в заголовке `Authorization` | `https://api.telegram.org/bot<TOKEN>` |
-| Отправка сообщения | `POST /messages?chat_id=`, тело с `attachments` | `POST /sendMessage`, тело `{ chat_id, text, reply_markup }` |
-| Кнопки сообщения | `attachments: [{ type: 'inline_keyboard', payload: { buttons } }]` | `reply_markup: { inline_keyboard: [[{ text, callback_data }]] }` |
-| Payload кнопки | `payload: "btn_0"` | `callback_data: "btn_0"` |
-| Приём callback | `update.callback.payload` | `update.callback_query.data` |
-| chatId сообщения | `u.chat_id` | `update.message.chat.id` |
-| chatId callback | из `u.chat_id` | `update.callback_query.message.chat.id` |
-| Поллинг | `GET /updates?timeout=30&marker=` | `GET /getUpdates?timeout=30&offset=` |
-| Курсор поллинга | `marker` из ответа | `offset = max(update_id) + 1` |
-| Подтверждение callback | нет | `POST /answerCallbackQuery` (убирает «крутилку») |
-
-### Формат тела `sendMessage`
-
-```js
-const body = { chat_id: chatId, text };
-if (buttons && buttons.length > 0) {
-  body.reply_markup = { inline_keyboard: buttons.map(row => [row]) };
-  // либо одна кнопка в ряд: [[b1],[b2]] — по кнопке на строку
-}
-```
-
-Каждая кнопка сообщения: `{ text: b.text, callback_data: b.payload }` (payload = `btn_0`, `btn_1`, …).
-
-### Разбор апдейта
-
-```js
-// message
-const chatId = u.message?.chat?.id;
-const text   = u.message?.text;
-const contact = u.message?.contact; // { phone_number, first_name, last_name, user_id }
-
-// callback_query
-const chatId = u.callback_query?.message?.chat?.id;
-const data   = u.callback_query?.data;
-```
-
-Обрабатываются апдейты, содержащие `message` или `callback_query`; остальные игнорируются.
+- **Python 3.10+**, **python-telegram-bot v21+**, **pytest** (для тестов).
+- Пользователь ставит зависимость сам: в шапке `bot.py` — комментарий `# pip install python-telegram-bot`.
+- Токен: `TOKEN = os.environ.get("BOT_TOKEN") or "<вшитый токен>"`.
+- Состояние (`user_state`) и переменные (`user_vars`) — в памяти процесса (обычные `dict`), без PTB persistence. Теряются при перезапуске (паритет с текущим поведением).
 
 ---
 
-## Блок Auth (запрос контакта)
+## Архитектура генерируемого `bot.py`
 
-Главное отличие Telegram: кнопка «поделиться контактом» — это **reply-клавиатура** (`ReplyKeyboardMarkup`), а не inline.
+Наш конечный автомат (состояние по `chat_id`) реализуется поверх PTB одним диспетчером `handle`, зарегистрированным на все нужные типы апдейтов:
 
-### Отправка auth-промпта
-
-```js
-reply_markup: {
-  keyboard: [
-    [{ text: contactButton.text, request_contact: true }],
-    // если refusalEnabled:
-    [{ text: refusalButton.text }]
-  ],
-  resize_keyboard: true,
-  one_time_keyboard: true
-}
+```python
+app.add_handler(CommandHandler("start", handle))
+app.add_handler(MessageHandler(filters.CONTACT, handle))
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle))
+app.add_handler(CallbackQueryHandler(handle))
 ```
 
-- Кнопка контакта: `{ text, request_contact: true }`.
-- Кнопка отказа: обычная текстовая кнопка reply-клавиатуры (у reply-кнопок нет callback, они шлют свой текст сообщением).
+PTB останавливается на первом сработавшем хендлере в группе по умолчанию, поэтому каждый апдейт попадает ровно в один `handle`.
 
-### Приём результата
+### Маппинг возможностей
 
-- **Контакт получен:** `update.message.contact` — уже структурирован. Никакого VCF-парсинга. Мапим в `userVars`:
-  ```js
-  { first_name: contact.first_name ?? '', last_name: contact.last_name ?? '', phone: String(contact.phone_number ?? '') }
-  ```
-  → переход `transitions[state].contact`.
-- **Отказ:** `update.message.text === refusalButton.text` → переход `transitions[state].refused`.
-- Иначе (любое другое сообщение в состоянии auth): игнор.
+| Аспект | Реализация |
+|--------|-----------|
+| Отправка | `await context.bot.send_message(chat_id=chat_id, text=text, reply_markup=markup)` |
+| Inline-кнопки сообщения | `InlineKeyboardMarkup([[InlineKeyboardButton(b["text"], callback_data=b["payload"])], ...])` |
+| Запрос контакта | `ReplyKeyboardMarkup([[KeyboardButton(text, request_contact=True)]], resize_keyboard=True, one_time_keyboard=True)` |
+| Кнопка отказа | обычная `KeyboardButton(text)` во второй строке reply-клавиатуры |
+| Скрыть reply-клавиатуру | `ReplyKeyboardRemove()` (когда у сообщения нет inline-кнопок) |
+| Приём контакта | `update.message.contact` → `.first_name`, `.last_name`, `.phone_number` |
+| Приём callback | `update.callback_query.data`; подтверждение `await update.callback_query.answer()` |
+| chat_id | `update.effective_chat.id` |
+| Long Polling | `app.run_polling()` |
+| Webhook | `app.run_webhook(listen="0.0.0.0", port=3000, url_path=TOKEN, webhook_url=os.environ["WEBHOOK_URL"])` |
 
-### Скрытие reply-клавиатуры
+### Точка входа
 
-При отправке следующего **не-auth** сообщения после auth-состояния клавиатуру нужно убрать, иначе она «залипнет». Если у сообщения нет своих inline-кнопок, добавляем `reply_markup: { remove_keyboard: true }`. Реализация: функция `send` всегда шлёт либо inline-клавиатуру сообщения, либо `remove_keyboard: true` при её отсутствии — это чисто и не залипает.
+Запуск бота — строго под `if __name__ == "__main__":`, чтобы импорт модуля в тестах не поднимал Application и не начинал polling.
 
-### Правка в `traverse.js`
+### Встраивание таблиц данных
 
-Сейчас auth отдаёт `refusalButton: { text, payload: 'auth_refuse_<id>' }`. Для Telegram payload не нужен — отдаём `refusalButton: { text }`. Переход `refused` матчится по тексту. Остальная логика traverse (BFS, `transitions.contact` / `transitions.refused`, очередь) не меняется.
+Таблицы (`MESSAGES`, `AUTH_PROMPTS`, `TRANSITIONS`, `INITIAL_NEXT`) встраиваются как одна JSON-строка и парсятся в рантайме:
+
+```python
+_TABLES = json.loads("""{...}""")
+MESSAGES = _TABLES["MESSAGES"]
+AUTH_PROMPTS = _TABLES["AUTH_PROMPTS"]
+TRANSITIONS = _TABLES["TRANSITIONS"]
+INITIAL_NEXT = _TABLES["INITIAL_NEXT"]
+```
+
+Это исключает проблемы `true/false/null` → `True/False/None` и экранирования. В генераторе строка получается двойным кодированием: `json.loads(${JSON.stringify(JSON.stringify(tables))})` — JSON-строка литерала валидна и как Python-строка.
+
+---
+
+## Логика `handle(update, context)`
+
+Псевдокод (порядок сохраняет семантику текущего JS-обработчика):
+
+```python
+async def handle(update, context):
+    if update.callback_query:
+        await update.callback_query.answer()
+    chat_id = update.effective_chat.id
+    message = update.message
+    text = message.text if message else None
+    contact = message.contact if message else None
+    data = update.callback_query.data if update.callback_query else None
+
+    if text == "/start":
+        user_state[chat_id] = "start"          # глобальный сброс
+    state = user_state.get(chat_id, "start")
+    nxt = None
+
+    if state == "start":
+        nxt = INITIAL_NEXT
+    elif state in AUTH_PROMPTS:
+        prompt = AUTH_PROMPTS[state]
+        if contact:
+            prev = user_vars.get(chat_id, {})
+            user_vars[chat_id] = {**prev,
+                "first_name": contact.first_name or "",
+                "last_name": contact.last_name or "",
+                "phone": str(contact.phone_number or "")}
+            nxt = TRANSITIONS.get(state, {}).get("contact")
+        elif prompt.get("refusalButton") and text == prompt["refusalButton"]["text"]:
+            nxt = TRANSITIONS.get(state, {}).get("refused")
+        else:
+            return
+    elif state in MESSAGES:
+        if contact:
+            return
+        trans = TRANSITIONS.get(state)
+        if not trans:
+            return
+        nxt = trans.get(data)                  # None → default (эквивалент JS ??)
+        if nxt is None:
+            nxt = trans.get("default")
+    else:
+        return
+
+    if not nxt:
+        user_state[chat_id] = "start"
+        return
+
+    if nxt in AUTH_PROMPTS:
+        prompt = AUTH_PROMPTS[nxt]
+        await send(context, chat_id, render(prompt["promptText"], chat_id), auth_markup(prompt))
+    elif nxt in MESSAGES:
+        m = MESSAGES[nxt]
+        await send(context, chat_id, render(m["text"], chat_id), message_markup(m))
+    else:
+        user_state[chat_id] = "start"
+        return
+
+    next_trans = TRANSITIONS.get(nxt)
+    has_any = bool(next_trans) and any(next_trans.values())
+    user_state[chat_id] = nxt if has_any else "start"
+```
+
+Вспомогательные:
+- `render(text, chat_id)` — подстановка `{{var}}` из `user_vars` через `re.sub`; неизвестная переменная → `""`.
+- `message_markup(msg)` → `InlineKeyboardMarkup` или `ReplyKeyboardRemove()` если кнопок нет.
+- `auth_markup(prompt)` → `ReplyKeyboardMarkup` с `request_contact` (+ строка отказа).
+- `send(context, chat_id, text, markup)` → `await context.bot.send_message(...)`.
+
+---
+
+## Правка в `traverse.js`
+
+Сейчас auth отдаёт `refusalButton: { text, payload: "auth_refuse_<id>" }`. Для Telegram payload не нужен: отдаём `refusalButton: { text }`. Переход `refused` матчится по тексту кнопки в `handle`. Остальная логика traverse (BFS, `transitions.contact`/`transitions.refused`, кнопки сообщений `btn_i`) не меняется.
 
 ---
 
 ## Поведение старта и токен
 
-### Токен
-
-В шапке генерируемого `bot.js`:
-
-```js
-const TOKEN = process.env.BOT_TOKEN || '<вшитый токен из проекта>';
-```
-
-Работает и через переменную окружения, и «из коробки» (`node bot.js`).
-
-### /start
-
-- В состоянии `start` любое сообщение (включая `/start`) ведёт к `INITIAL_NEXT` — как сейчас.
-- Дополнительно, **глобально**: если пришёл текст `/start` в любом состоянии, `handle` сбрасывает пользователя в начало (`userState → start`) и заново запускает сценарий с `INITIAL_NEXT`. Проверка выполняется в начале `handle`, до разбора текущего состояния.
-
----
-
-## Генерация кода
-
-Алгоритм компилятора не меняется: `traverse` строит таблицы `messages` / `authPrompts` / `transitions` / `initialNext`, а `polling.js` / `webhook.js` встраивают их в шаблон Telegram-бота. Общая функция `handle(chatId, update)` идентична для обоих режимов; отличается только транспорт (цикл getUpdates vs http-сервер).
-
-### Long Polling (`mode: "polling"`)
-
-```js
-// Generated by Bot Constructor for Telegram
-const TOKEN = process.env.BOT_TOKEN || '...';
-const API = `https://api.telegram.org/bot${TOKEN}`;
-
-let offset = 0;
-while (true) {
-  const r = await fetch(`${API}/getUpdates?timeout=30&offset=${offset}`);
-  if (!r.ok) { /* лог + retry 2s */ continue; }
-  const { result } = await r.json();
-  for (const u of result ?? []) {
-    offset = u.update_id + 1;
-    const chatId = u.message?.chat?.id ?? u.callback_query?.message?.chat?.id;
-    if (chatId) await handle(chatId, u);
-    if (u.callback_query) await answerCallback(u.callback_query.id);
-  }
-}
-```
-
-### Webhook (`mode: "webhook"`)
-
-`http.createServer` на порту 3000, принимает POST от Telegram с одним `Update` в теле, отвечает 200. Та же `handle`. В шапке — комментарий: пользователь регистрирует URL через `setWebhook` и настраивает HTTPS-туннель самостоятельно.
-
----
-
-## Обработка ошибок
-
-- `sendMessage`, `getUpdates`, `answerCallbackQuery` проверяют `r.ok`; при ошибке логируют `r.status` и тело ответа.
-- Поллинг: `try/catch` вокруг итерации, ретрай через 2 сек (как сейчас).
-- `answerCallbackQuery` — best-effort, ошибка не роняет обработку.
+- В состоянии `start` любое сообщение (включая `/start`) ведёт к `INITIAL_NEXT`.
+- Глобально: `/start` в любом состоянии сбрасывает `user_state[chat_id] = "start"` в начале `handle`, после чего сценарий стартует заново.
+- Токен: `os.environ.get("BOT_TOKEN")` с fallback на вшитый — работает и из env, и «из коробки».
 
 ---
 
 ## Тестирование
 
-- `tests/generator/polling.test.js`, `tests/generator/webhook.test.js` — переписываются: прогоняют `generate()` на модельном проекте, `eval`/импорт сгенерированного кода в песочнице (как сейчас через `__SKIP_POLL__`), проверяют:
-  - тело `sendMessage`: `chat_id`, `reply_markup.inline_keyboard`, `callback_data`
-  - разбор `callback_query.data` и `message.chat.id`
-  - auth: reply-клавиатура с `request_contact: true`, приём `message.contact`, отказ по тексту
-  - `/start` как глобальный сброс
-  - offset-курсор в polling
-- `tests/generator/traverse.test.js` — правки только в auth-refusal (проверка `refusalButton.text` без payload).
+### Поведенческие (pytest) — логика бота
+
+- `scripts/generate.mjs`: CLI над `generate()` — читает путь к project JSON из argv, печатает Python-код в stdout.
+- `tests/py/conftest.py`: фикстура `make_bot(project: dict)` — пишет project во временный JSON, запускает `node scripts/generate.mjs <json>` через `subprocess`, сохраняет вывод во временный `.py`, импортирует его `importlib`, возвращает модуль (с `handle`, `user_state`, `user_vars`).
+- Фейки: `update`/`context` собираются на `types.SimpleNamespace` + `unittest.mock.AsyncMock` (`context.bot.send_message`, `callback_query.answer`). Проверяются kwargs `send_message` и структура `reply_markup` (через атрибуты `inline_keyboard`/`keyboard`, `isinstance(..., ReplyKeyboardRemove)`).
+- Покрытие: routing start→message, inline-кнопки, `{{var}}` и пустая переменная, auth (reply-клавиатура с `request_contact`, строка отказа), приём контакта → `user_vars` + переход, отказ по тексту, игнор постороннего текста в auth, игнор контакта в message-состоянии, `/start` как глобальный сброс, скрытие клавиатуры `ReplyKeyboardRemove`.
+- Требуется в окружении: Python 3.10+, python-telegram-bot v21+, pytest, Node.js (для генерации).
+
+### Структурные (vitest) — генератор и граф
+
+- `tests/generator/traverse.test.js` — правки только в auth-refusal (`refusalButton.text` без payload).
+- `tests/generator/*` для polling/webhook сводятся к структурным проверкам: `generate()` для `mode:"polling"` содержит `run_polling`, для `mode:"webhook"` — `run_webhook`; наличие `import`-строк PTB, `json.loads`, `if __name__`.
 - `tests/store.test.js` — не трогается.
-- Механизм подавления сетевого цикла в тестах (`globalThis.__SKIP_POLL__`) сохраняется.
 
 ---
 
@@ -197,6 +206,7 @@ while (true) {
 
 - Нет запуска бота из приложения
 - Нет предпросмотра диалога
-- Нет новых переменных/условной логики сверх существующего рендеринга `{{var}}`
+- Нет новой переменной/условной логики сверх `{{var}}`
 - Нет работы с медиа/файлами
-- Двойной таргет (Max + Telegram) не поддерживается — только Telegram
+- Нет двойного таргета (Max/Node) — только Telegram/Python
+- Не используется `ConversationHandler`/persistence PTB — состояние в памяти
