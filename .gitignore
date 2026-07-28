@@ -3,3 +3,7 @@ dist/
 release/
 .vite/
 *.log
+__pycache__/
+*.pyc
+.pytest_cache/
+.superpowers/
