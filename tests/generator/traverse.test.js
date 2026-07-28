@@ -128,7 +128,7 @@ describe('traverse', () => {
     expect(authPrompts.a1).toEqual({
       promptText: 'P',
       contactButton: { text: 'C' },
-      refusalButton: { text: 'R', payload: 'auth_refuse_a1' },
+      refusalButton: { text: 'R' },
     });
     expect(transitions.a1).toEqual({ contact: 'm1', refused: 'm2' });
     expect(messages.m1.text).toBe('ok');

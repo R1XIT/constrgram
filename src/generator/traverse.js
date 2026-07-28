@@ -59,7 +59,7 @@ export function traverse(project) {
       const contactText = (node.data.contactButtonText || '').trim() || 'Поделиться контактом';
       const refusalText = (node.data.refusalButtonText || '').trim() || 'Отказаться';
       const refusalButton = node.data.refusalEnabled
-        ? { text: refusalText, payload: `auth_refuse_${id}` }
+        ? { text: refusalText }
         : null;
       authPrompts[id] = {
         promptText: node.data.promptText ?? '',
