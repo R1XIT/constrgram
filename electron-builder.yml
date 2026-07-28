@@ -1,5 +1,5 @@
-appId: ru.bot-constructor.max
-productName: Bot Constructor для Max
+appId: ru.bot-constructor.telegram
+productName: Bot Constructor для Telegram
 directories:
   output: release
 files:

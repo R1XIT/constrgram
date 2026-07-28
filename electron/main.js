@@ -44,14 +44,14 @@ ipcMain.handle('open-project', async () => {
   return { ok: true, data, filePath: filePaths[0] };
 });
 
-ipcMain.handle('save-bot', async (_e, jsString) => {
+ipcMain.handle('save-bot', async (_e, pyString) => {
   const { canceled, filePath } = await dialog.showSaveDialog({
-    title: 'Сохранить bot.js',
-    filters: [{ name: 'JavaScript', extensions: ['js'] }],
-    defaultPath: 'bot.js',
+    title: 'Сохранить bot.py',
+    filters: [{ name: 'Python', extensions: ['py'] }],
+    defaultPath: 'bot.py',
   });
   if (canceled || !filePath) return { ok: false };
-  await fs.writeFile(filePath, jsString, 'utf8');
+  await fs.writeFile(filePath, pyString, 'utf8');
   return { ok: true, filePath };
 });
 
