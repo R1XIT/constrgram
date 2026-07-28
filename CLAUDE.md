@@ -6,9 +6,9 @@
 
 ## Статус проекта
 
-**Фаза:** Дизайн завершён, реализация не начата.
+**Фаза:** Генератор реализован — компилирует ботов в Python (python-telegram-bot). UI (Electron/React) ещё не реализован.
 
-Полный дизайн-спек: `docs/superpowers/specs/2026-06-02-bot-constructor-design.md`
+Полный дизайн-спек: `docs/superpowers/specs/2026-07-28-telegram-migration-design.md`
 
 ## Ключевые решения
 
@@ -24,7 +24,7 @@
 
 ```
 electron (main.js)
-├── Файловые диалоги (save/open .json проекта, save bot.js)
+├── Файловые диалоги (save/open .json проекта, save bot.py)
 └── IPC с renderer
 
 react renderer
@@ -63,7 +63,7 @@ react renderer
 
 `mode`: `"polling"` | `"webhook"`
 
-## Генерация bot.js
+## Генерация bot.py
 
 **Алгоритм:** BFS от Start-ноды → каждая нода = состояние → `handle(chatId, payload)` с if/else по состояниям → `userState: Map<chatId, state>`.
 
@@ -79,7 +79,7 @@ react renderer
 - Dropdown режима (Long Polling / Webhook) — изменяется в любой момент
 - Кнопка «Сохранить» → `dialog.showSaveDialog` → `.json`
 - Кнопка «Открыть» → `dialog.showOpenDialog` → загружает `.json`
-- Кнопка «Компилировать» → генерирует `bot.js` → `dialog.showSaveDialog`
+- Кнопка «Компилировать» → генерирует `bot.py` → `dialog.showSaveDialog`
 
 ## Что НЕ входит в v1
 

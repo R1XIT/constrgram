@@ -5,14 +5,15 @@ export function generateWebhook(args) {
 
 def main():
     app = build_app()
-    # Установите публичный HTTPS-URL вебхука в переменной окружения WEBHOOK_URL.
-    webhook_url = os.environ.get("WEBHOOK_URL", "")
+    # WEBHOOK_URL — публичный HTTPS-адрес вашего сервера (напр. https://example.com).
+    # Токен добавляется в путь автоматически, чтобы совпасть с url_path.
+    base_url = os.environ.get("WEBHOOK_URL", "").rstrip("/")
     print("Бот запущен (Telegram, webhook) на порту 3000...")
     app.run_webhook(
         listen="0.0.0.0",
         port=3000,
         url_path=TOKEN,
-        webhook_url=webhook_url,
+        webhook_url=f"{base_url}/{TOKEN}",
     )
 
 
