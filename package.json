@@ -1,7 +1,8 @@
 {
-  "name": "bot-constructor-max",
+  "name": "bot-constructor-telegram",
   "version": "0.1.1",
   "private": true,
+  "type": "module",
   "main": "electron/main.js",
   "scripts": {
     "dev:vite": "vite",
