@@ -22,7 +22,8 @@ function render(text, chatId) {
 
 function parseVcf(vcf) {
   const out = { fn: '', last: '', first: '', tel: '' };
-  for (const raw of String(vcf).split(/\\r?\\n/)) {
+  const text = String(vcf).replace(/\\\\r\\\\n/g, '\\n');
+  for (const raw of text.split(/\\r?\\n/)) {
     const idx = raw.indexOf(':');
     if (idx < 0) continue;
     const left = raw.slice(0, idx);
@@ -41,8 +42,8 @@ function parseVcf(vcf) {
 }
 
 function extractContact(att) {
-  const m = att?.max_info ?? {};
-  const vcf = parseVcf(att?.vcf_info ?? '');
+  const m = att?.payload?.max_info ?? {};
+  const vcf = parseVcf(att?.payload?.vcf_info ?? '');
   return {
     first_name: m.first_name ?? vcf.first ?? vcf.fn ?? '',
     last_name:  m.last_name  ?? vcf.last  ?? '',

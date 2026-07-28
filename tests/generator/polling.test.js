@@ -185,8 +185,10 @@ describe('generatePolling — variables & auth', () => {
       chat_id: 42,
       message: { body: { attachments: [{
         type: 'contact',
-        max_info: { first_name: 'Иван', last_name: 'Петров', phone: '+71234567890' },
-        vcf_info: '',
+        payload: {
+          max_info: { first_name: 'Иван', last_name: 'Петров', phone: '+71234567890' },
+          vcf_info: '',
+        },
       }] } },
     });
     expect(userVars.get(42)).toEqual({
@@ -212,12 +214,42 @@ describe('generatePolling — variables & auth', () => {
       chat_id: 42,
       message: { body: { attachments: [{
         type: 'contact',
-        max_info: {},
-        vcf_info: 'BEGIN:VCARD\nN:Иванов;Иван;;;\nFN:Иван Иванов\nTEL;TYPE=CELL:+79991234567\nEND:VCARD',
+        payload: {
+          max_info: {},
+          vcf_info: 'BEGIN:VCARD\nN:Иванов;Иван;;;\nFN:Иван Иванов\nTEL;TYPE=CELL:+79991234567\nEND:VCARD',
+        },
       }] } },
     });
     expect(userVars.get(42)).toEqual({
       first_name: 'Иван', last_name: 'Иванов', phone: '+79991234567',
+    });
+    delete globalThis.__SKIP_POLL__;
+  });
+
+  it('parses vcf_info with literal \\r\\n separators (as Max sends)', async () => {
+    const { handle, userVars } = build({
+      token: 'T',
+      messages: { m1: { text: 'ok', buttons: null } },
+      authPrompts: {
+        a1: { promptText: 'P', contactButton: { text: 'C' }, refusalButton: null },
+      },
+      transitions: { a1: { contact: 'm1' }, m1: { default: null } },
+      initialNext: 'a1',
+    });
+    await handle(42, { update_type: 'message_created', chat_id: 42, message: {} });
+    await handle(42, {
+      update_type: 'message_created',
+      chat_id: 42,
+      message: { body: { attachments: [{
+        type: 'contact',
+        payload: {
+          max_info: {},
+          vcf_info: 'BEGIN:VCARD\\r\\nN:Петров;Пётр;;;\\r\\nFN:Пётр Петров\\r\\nTEL;TYPE=cell:+79990000000\\r\\nEND:VCARD',
+        },
+      }] } },
+    });
+    expect(userVars.get(42)).toEqual({
+      first_name: 'Пётр', last_name: 'Петров', phone: '+79990000000',
     });
     delete globalThis.__SKIP_POLL__;
   });
@@ -285,8 +317,10 @@ describe('generatePolling — variables & auth', () => {
       update_type: 'message_created', chat_id: 42,
       message: { body: { attachments: [{
         type: 'contact',
-        max_info: { first_name: 'X', last_name: 'Y', phone: '+1' },
-        vcf_info: '',
+        payload: {
+          max_info: { first_name: 'X', last_name: 'Y', phone: '+1' },
+          vcf_info: '',
+        },
       }] } },
     });
     expect(sent.length).toBe(beforeLen);
