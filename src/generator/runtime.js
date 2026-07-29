@@ -1,7 +1,19 @@
-export function botRuntime({ token, messages, authPrompts = {}, transitions, initialNext }) {
+export function botRuntime({
+  token,
+  messages,
+  authPrompts = {},
+  setters = {},
+  inputs = {},
+  conditions = {},
+  transitions,
+  initialNext,
+}) {
   const tables = {
     MESSAGES: messages,
     AUTH_PROMPTS: authPrompts,
+    SETTERS: setters,
+    INPUTS: inputs,
+    CONDITIONS: conditions,
     TRANSITIONS: transitions,
     INITIAL_NEXT: initialNext,
   };
@@ -34,6 +46,9 @@ TOKEN = os.environ.get("BOT_TOKEN") or ${JSON.stringify(token)}
 _TABLES = json.loads(${tablesLiteral})
 MESSAGES = _TABLES["MESSAGES"]
 AUTH_PROMPTS = _TABLES["AUTH_PROMPTS"]
+SETTERS = _TABLES["SETTERS"]
+INPUTS = _TABLES["INPUTS"]
+CONDITIONS = _TABLES["CONDITIONS"]
 TRANSITIONS = _TABLES["TRANSITIONS"]
 INITIAL_NEXT = _TABLES["INITIAL_NEXT"]
 
@@ -44,6 +59,45 @@ user_vars = {}
 def render(text, chat_id):
     vars_ = user_vars.get(chat_id, {})
     return re.sub(r"\\{\\{(\\w+)\\}\\}", lambda m: str(vars_.get(m.group(1), "")), str(text))
+
+
+def set_var(chat_id, name, value):
+    prev = user_vars.get(chat_id, {})
+    user_vars[chat_id] = {**prev, name: value}
+
+
+def check_rule(chat_id, rule):
+    left = str(user_vars.get(chat_id, {}).get(rule["variable"], ""))
+    op = rule["op"]
+    if op == "empty":
+        return left.strip() == ""
+    if op == "not_empty":
+        return left.strip() != ""
+    right = render(rule["value"], chat_id)
+    if op in ("gt", "lt", "gte", "lte"):
+        try:
+            lf, rf = float(left), float(right)
+        except ValueError:
+            return False
+        return {"gt": lf > rf, "lt": lf < rf, "gte": lf >= rf, "lte": lf <= rf}[op]
+    a, b = left.strip().lower(), right.strip().lower()
+    if op == "equals":
+        return a == b
+    if op == "not_equals":
+        return a != b
+    if op == "contains":
+        return b in a
+    if op == "not_contains":
+        return b not in a
+    return False
+
+
+def eval_condition(chat_id, node):
+    trans = TRANSITIONS.get(node, {})
+    for i, rule in enumerate(CONDITIONS[node]["rules"]):
+        if check_rule(chat_id, rule):
+            return trans.get(f"rule_{i}")
+    return trans.get("else")
 
 
 def message_markup(msg):
@@ -63,6 +117,35 @@ def auth_markup(prompt):
 
 async def send(context, chat_id, text, reply_markup):
     await context.bot.send_message(chat_id=chat_id, text=text, reply_markup=reply_markup)
+
+
+async def advance(context, chat_id, node):
+    for _ in range(1000):
+        if not node:
+            break
+        if node in SETTERS:
+            s = SETTERS[node]
+            set_var(chat_id, s["variable"], render(s["value"], chat_id))
+            node = TRANSITIONS.get(node, {}).get("default")
+            continue
+        if node in CONDITIONS:
+            node = eval_condition(chat_id, node)
+            continue
+        if node in AUTH_PROMPTS:
+            prompt = AUTH_PROMPTS[node]
+            await send(context, chat_id, render(prompt["promptText"], chat_id), auth_markup(prompt))
+        elif node in INPUTS:
+            await send(context, chat_id, render(INPUTS[node]["promptText"], chat_id), ReplyKeyboardRemove())
+        elif node in MESSAGES:
+            m = MESSAGES[node]
+            await send(context, chat_id, render(m["text"], chat_id), message_markup(m))
+        else:
+            break
+        next_trans = TRANSITIONS.get(node)
+        has_any = bool(next_trans) and any(next_trans.values())
+        user_state[chat_id] = node if has_any else "start"
+        return
+    user_state[chat_id] = "start"
 
 
 async def handle(update, context):
@@ -96,6 +179,11 @@ async def handle(update, context):
             nxt = TRANSITIONS.get(state, {}).get("refused")
         else:
             return
+    elif state in INPUTS:
+        if text is None:
+            return
+        set_var(chat_id, INPUTS[state]["variable"], text)
+        nxt = TRANSITIONS.get(state, {}).get("default")
     elif state in MESSAGES:
         if contact:
             return
@@ -108,23 +196,7 @@ async def handle(update, context):
     else:
         return
 
-    if not nxt:
-        user_state[chat_id] = "start"
-        return
-
-    if nxt in AUTH_PROMPTS:
-        prompt = AUTH_PROMPTS[nxt]
-        await send(context, chat_id, render(prompt["promptText"], chat_id), auth_markup(prompt))
-    elif nxt in MESSAGES:
-        m = MESSAGES[nxt]
-        await send(context, chat_id, render(m["text"], chat_id), message_markup(m))
-    else:
-        user_state[chat_id] = "start"
-        return
-
-    next_trans = TRANSITIONS.get(nxt)
-    has_any = bool(next_trans) and any(next_trans.values())
-    user_state[chat_id] = nxt if has_any else "start"
+    await advance(context, chat_id, nxt)
 
 
 def build_app():

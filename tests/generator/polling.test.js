@@ -46,4 +46,24 @@ describe('generate(project)', () => {
   it('dispatches to webhook template for mode: "webhook"', () => {
     expect(generate(project('webhook'))).toContain('run_webhook');
   });
+
+  it('generates SETTERS/CONDITIONS/INPUTS tables and advance()', () => {
+    const project = {
+      token: 'T', mode: 'polling',
+      nodes: [
+        { id: 'start', type: 'start', data: {} },
+        { id: 's1', type: 'setvar', data: { variable: 'x', value: 'hi' } },
+        { id: 'm1', type: 'message', data: { text: '{{x}}', buttonsEnabled: false } },
+      ],
+      edges: [
+        { id: 'e0', source: 'start', target: 's1' },
+        { id: 'e1', source: 's1', target: 'm1' },
+      ],
+    };
+    const code = generate(project);
+    expect(code).toContain('SETTERS = _TABLES["SETTERS"]');
+    expect(code).toContain('CONDITIONS = _TABLES["CONDITIONS"]');
+    expect(code).toContain('INPUTS = _TABLES["INPUTS"]');
+    expect(code).toContain('async def advance(');
+  });
 });
