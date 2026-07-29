@@ -59,6 +59,13 @@ export const useStore = create((set, get) => ({
         e.source !== id || validHandles.has(e.sourceHandle)
       );
     }
+    if (node && node.type === 'condition') {
+      const validHandles = new Set(['else']);
+      (node.data.rules ?? []).forEach((_, i) => validHandles.add(`rule-${i}`));
+      edges = edges.filter((e) =>
+        e.source !== id || validHandles.has(e.sourceHandle)
+      );
+    }
     set({ nodes, edges });
   },
 
@@ -75,6 +82,6 @@ export const useStore = create((set, get) => ({
 
   toProjectJSON: () => {
     const { token, mode, nodes, edges } = get();
-    return { version: '1.0', token, mode, nodes, edges };
+    return { version: '1.1', token, mode, nodes, edges };
   },
 }));

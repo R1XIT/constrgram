@@ -41,7 +41,7 @@ describe('store', () => {
   it('toProjectJSON includes version, token, mode, nodes, edges', () => {
     useStore.getState().setToken('T');
     const project = useStore.getState().toProjectJSON();
-    expect(project.version).toBe('1.0');
+    expect(project.version).toBe('1.1');
     expect(project.token).toBe('T');
     expect(project.mode).toBe('polling');
     expect(project.nodes).toHaveLength(1);
@@ -134,5 +134,28 @@ describe('store', () => {
     const handles = useStore.getState().edges
       .map((e) => e.sourceHandle).sort();
     expect(handles).toEqual(['contact', 'refused']);
+  });
+
+  it('prunes condition edges whose rule handle no longer exists', () => {
+    useStore.getState().addNode({
+      id: 'cond_1', type: 'condition',
+      position: { x: 0, y: 0 },
+      data: { rules: [{ variable: 'a', op: 'equals', value: '1' }, { variable: 'b', op: 'equals', value: '2' }] },
+    });
+    useStore.getState().addNode({
+      id: 'msg_1', type: 'message',
+      position: { x: 200, y: 0 },
+      data: { text: '', buttonsEnabled: false, buttons: [] },
+    });
+    useStore.setState({
+      edges: [
+        { id: 'e0', source: 'cond_1', sourceHandle: 'rule-0', target: 'msg_1' },
+        { id: 'e1', source: 'cond_1', sourceHandle: 'rule-1', target: 'msg_1' },
+        { id: 'e2', source: 'cond_1', sourceHandle: 'else', target: 'msg_1' },
+      ],
+    });
+    useStore.getState().updateNodeData('cond_1', { rules: [{ variable: 'a', op: 'equals', value: '1' }] });
+    const handles = useStore.getState().edges.map((e) => e.sourceHandle).sort();
+    expect(handles).toEqual(['else', 'rule-0']);
   });
 });
