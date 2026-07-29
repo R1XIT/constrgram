@@ -44,3 +44,30 @@ export function makeAuthNode(position) {
     },
   };
 }
+
+export function makeSetNode(position) {
+  return {
+    id: nextNodeId('set'),
+    type: 'setvar',
+    position,
+    data: { variable: '', value: '' },
+  };
+}
+
+export function makeInputNode(position) {
+  return {
+    id: nextNodeId('input'),
+    type: 'input',
+    position,
+    data: { promptText: '', variable: '' },
+  };
+}
+
+export function makeConditionNode(position) {
+  return {
+    id: nextNodeId('cond'),
+    type: 'condition',
+    position,
+    data: { rules: [{ variable: '', op: 'equals', value: '' }] },
+  };
+}
