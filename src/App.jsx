@@ -2,15 +2,21 @@ import { useCallback, useRef } from 'react';
 import ReactFlow, { Background, Controls, MiniMap, useReactFlow, ReactFlowProvider } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { useStore } from './store.js';
-import { makeMessageNode, makeAuthNode } from './nodeFactory.js';
+import { makeMessageNode, makeAuthNode, makeSetNode, makeInputNode, makeConditionNode } from './nodeFactory.js';
 import Toolbar from './components/Toolbar.jsx';
 import BlockPalette from './components/BlockPalette.jsx';
 import PropertiesPanel from './components/PropertiesPanel.jsx';
 import StartNode from './components/StartNode.jsx';
 import MessageNode from './components/MessageNode.jsx';
 import AuthNode from './components/AuthNode.jsx';
+import SetVarNode from './components/SetVarNode.jsx';
+import InputNode from './components/InputNode.jsx';
+import ConditionNode from './components/ConditionNode.jsx';
 
-const nodeTypes = { start: StartNode, message: MessageNode, auth: AuthNode };
+const nodeTypes = {
+  start: StartNode, message: MessageNode, auth: AuthNode,
+  setvar: SetVarNode, input: InputNode, condition: ConditionNode,
+};
 
 function Canvas() {
   const nodes = useStore((s) => s.nodes);
@@ -35,6 +41,9 @@ function Canvas() {
     const position = screenToFlowPosition({ x: e.clientX, y: e.clientY });
     if (kind === 'message') addNode(makeMessageNode(position));
     else if (kind === 'auth') addNode(makeAuthNode(position));
+    else if (kind === 'setvar') addNode(makeSetNode(position));
+    else if (kind === 'input') addNode(makeInputNode(position));
+    else if (kind === 'condition') addNode(makeConditionNode(position));
   }, [addNode, screenToFlowPosition]);
 
   return (

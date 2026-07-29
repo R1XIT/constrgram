@@ -43,4 +43,22 @@ describe('BlockPalette — click to add (drag fallback)', () => {
     });
     expect(setData).toContainEqual(['application/x-bot-block', 'message']);
   });
+
+  it('adds a setvar node when the «Переменная» block is clicked', () => {
+    render(<BlockPalette />);
+    fireEvent.click(screen.getByText(/Переменная/));
+    expect(useStore.getState().nodes.some((n) => n.type === 'setvar')).toBe(true);
+  });
+
+  it('adds an input node when the «Ввод» block is clicked', () => {
+    render(<BlockPalette />);
+    fireEvent.click(screen.getByText(/Ввод/));
+    expect(useStore.getState().nodes.some((n) => n.type === 'input')).toBe(true);
+  });
+
+  it('adds a condition node when the «Условие» block is clicked', () => {
+    render(<BlockPalette />);
+    fireEvent.click(screen.getByText(/Условие/));
+    expect(useStore.getState().nodes.some((n) => n.type === 'condition')).toBe(true);
+  });
 });
