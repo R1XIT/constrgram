@@ -150,4 +150,66 @@ describe('traverse', () => {
     expect(authPrompts.a1.contactButton.text).toBe('Поделиться контактом');
     expect(authPrompts.a1.refusalButton.text).toBe('Отказаться');
   });
+
+  it('emits a setter table and default transition for a setvar node', () => {
+    const project = {
+      nodes: [
+        { id: 'start', type: 'start', data: {} },
+        { id: 's1', type: 'setvar', data: { variable: 'age', value: '18' } },
+        { id: 'm1', type: 'message', data: { text: 'ok', buttonsEnabled: false } },
+      ],
+      edges: [
+        { id: 'e0', source: 'start', target: 's1' },
+        { id: 'e1', source: 's1', target: 'm1' },
+      ],
+    };
+    const { setters, transitions, initialNext } = traverse(project);
+    expect(initialNext).toBe('s1');
+    expect(setters.s1).toEqual({ variable: 'age', value: '18' });
+    expect(transitions.s1).toEqual({ default: 'm1' });
+  });
+
+  it('emits an input table and default transition for an input node', () => {
+    const project = {
+      nodes: [
+        { id: 'start', type: 'start', data: {} },
+        { id: 'i1', type: 'input', data: { promptText: 'Как вас зовут?', variable: 'name' } },
+        { id: 'm1', type: 'message', data: { text: 'ok', buttonsEnabled: false } },
+      ],
+      edges: [
+        { id: 'e0', source: 'start', target: 'i1' },
+        { id: 'e1', source: 'i1', target: 'm1' },
+      ],
+    };
+    const { inputs, transitions } = traverse(project);
+    expect(inputs.i1).toEqual({ promptText: 'Как вас зовут?', variable: 'name' });
+    expect(transitions.i1).toEqual({ default: 'm1' });
+  });
+
+  it('routes condition rules by sourceHandle and keeps an else branch', () => {
+    const project = {
+      nodes: [
+        { id: 'start', type: 'start', data: {} },
+        { id: 'c1', type: 'condition', data: { rules: [
+          { variable: 'age', op: 'gte', value: '18' },
+          { variable: 'city', op: 'equals', value: 'Москва' },
+        ] } },
+        { id: 'a', type: 'message', data: { text: 'adult', buttonsEnabled: false } },
+        { id: 'b', type: 'message', data: { text: 'msk', buttonsEnabled: false } },
+        { id: 'c', type: 'message', data: { text: 'other', buttonsEnabled: false } },
+      ],
+      edges: [
+        { id: 'e0', source: 'start', target: 'c1' },
+        { id: 'e1', source: 'c1', sourceHandle: 'rule-0', target: 'a' },
+        { id: 'e2', source: 'c1', sourceHandle: 'rule-1', target: 'b' },
+        { id: 'e3', source: 'c1', sourceHandle: 'else', target: 'c' },
+      ],
+    };
+    const { conditions, transitions } = traverse(project);
+    expect(conditions.c1.rules).toEqual([
+      { variable: 'age', op: 'gte', value: '18' },
+      { variable: 'city', op: 'equals', value: 'Москва' },
+    ]);
+    expect(transitions.c1).toEqual({ rule_0: 'a', rule_1: 'b', else: 'c' });
+  });
 });

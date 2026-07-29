@@ -8,15 +8,18 @@ export function traverse(project) {
   }
 
   const startNode = project.nodes.find((n) => n.type === 'start');
-  if (!startNode) return { messages: {}, authPrompts: {}, transitions: {}, initialNext: null };
+  if (!startNode) return { messages: {}, authPrompts: {}, setters: {}, inputs: {}, conditions: {}, transitions: {}, initialNext: null };
 
   const startEdges = outgoing.get(startNode.id) ?? [];
-  if (startEdges.length === 0) return { messages: {}, authPrompts: {}, transitions: {}, initialNext: null };
+  if (startEdges.length === 0) return { messages: {}, authPrompts: {}, setters: {}, inputs: {}, conditions: {}, transitions: {}, initialNext: null };
 
   const initialNext = startEdges[0].target;
 
   const messages = {};
   const authPrompts = {};
+  const setters = {};
+  const inputs = {};
+  const conditions = {};
   const transitions = {};
   const queue = [initialNext];
   const seen = new Set();
@@ -78,7 +81,44 @@ export function traverse(project) {
       transitions[id] = trans;
       continue;
     }
+
+    if (node.type === 'setvar') {
+      setters[id] = { variable: node.data.variable ?? '', value: node.data.value ?? '' };
+      const edge = outs[0];
+      const next = edge ? edge.target : null;
+      transitions[id] = { default: next };
+      if (next) queue.push(next);
+      continue;
+    }
+
+    if (node.type === 'input') {
+      inputs[id] = { promptText: node.data.promptText ?? '', variable: node.data.variable ?? '' };
+      const edge = outs[0];
+      const next = edge ? edge.target : null;
+      transitions[id] = { default: next };
+      if (next) queue.push(next);
+      continue;
+    }
+
+    if (node.type === 'condition') {
+      const rules = (node.data.rules ?? []).map((r) => ({
+        variable: r.variable ?? '', op: r.op ?? 'equals', value: r.value ?? '',
+      }));
+      conditions[id] = { rules };
+      const trans = {};
+      rules.forEach((_, i) => {
+        const edge = outs.find((e) => e.sourceHandle === `rule-${i}`);
+        const next = edge ? edge.target : null;
+        trans[`rule_${i}`] = next;
+        if (next) queue.push(next);
+      });
+      const elseEdge = outs.find((e) => e.sourceHandle === 'else');
+      trans.else = elseEdge ? elseEdge.target : null;
+      if (trans.else) queue.push(trans.else);
+      transitions[id] = trans;
+      continue;
+    }
   }
 
-  return { messages, authPrompts, transitions, initialNext };
+  return { messages, authPrompts, setters, inputs, conditions, transitions, initialNext };
 }
