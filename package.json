@@ -1,6 +1,6 @@
 {
   "name": "bot-constructor-telegram",
-  "version": "0.1.1",
+  "version": "1.0.0",
   "private": true,
   "license": "MIT",
   "main": "electron/main.js",
