@@ -187,7 +187,11 @@ async def advance(context, chat_id, node):
             await send(context, chat_id, render(m["text"], chat_id), message_markup(m))
         else:
             break
-        user_state[chat_id] = node
+        # Сохраняем семантику текущего рантайма: терминальный узел (без непустых
+        # переходов) сбрасывает состояние в "start", иначе запоминаем узел.
+        next_trans = TRANSITIONS.get(node)
+        has_any = bool(next_trans) and any(next_trans.values())
+        user_state[chat_id] = node if has_any else "start"
         return
     user_state[chat_id] = "start"
 ```
